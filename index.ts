@@ -57,7 +57,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 const registeredUser = registeredUsers.find(user => user.name === userName)
                 if (registeredUser) {
                     if (registeredUser.password !== data.password) {
-                        error(ws, { name: userName, index: ws.id }, 'Wrong password')
+                        error(ws, { name: userName, index }, 'Wrong password')
                         console.log(`Reg command received from client: User: ${activeUser.name} wrong password`)
                         return
                     }
@@ -304,6 +304,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 const response: IAttackResult | IAttackError = attack(parsedData, activeRooms, wss, winners)
                 if ('error' in response) {
                     console.log(`Received ${messageType} from client: error ${response.error}`)
+                    if (response.error === 'Already shot here') turn(ws, activeUser.index)
                 } else {
                     const data = JSON.parse(parsedData?.data)
                     console.log(`Received ${messageType} from client: result ${response.position.x}, ${response.position.y} - ${response.status}`)

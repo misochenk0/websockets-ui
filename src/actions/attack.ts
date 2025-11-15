@@ -42,7 +42,9 @@ export const attack = (parsedData: IParsedData, activeRooms: IActiveRoom[], wss:
     const player: IRoomUser = room.roomUsers.find(user => user.index === data.indexPlayer)
     const enemy: IRoomUser = room.roomUsers.find(user => user.index !== data.indexPlayer)
     let position: IPosition = { x: data.x, y: data.y }
-
+    if (player.steps.has(`${data.x},${data.y}`)) {
+        return { error: 'Already shot here' }
+    }
     if (parsedData?.type === 'randomAttack') {
         const available: IPosition = findFirstAvailable(player.steps)
         position = { x: available.x, y: available.y }
