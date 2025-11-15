@@ -4,6 +4,7 @@ import {IRoom, IParsedData, IRoomUser, IUser, IShip, IPosition, IExtendedWebSock
 import { updateWinners } from "./src/actions/update_winners.js";
 import { attack } from "./src/actions/attack.js";
 import { turn } from "./src/actions/turn.js";
+import { error } from "./src/actions/error.js";
 
 const HTTP_PORT: number = 8181;
 
@@ -22,16 +23,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
     index++
     let activeUser: IUser = { name: userName, password: '', index: ws.id}
     ws.on('error', (): void => {
-        ws.send(JSON.stringify({
-            type: 'reg',
-            data: {
-                name: activeUser.name,
-                index: activeUser.index,
-                error: true,
-                errorText: 'Connection error'
-            },
-            id: ws.id,
-        }));
+        error(ws, activeUser, 'Connection error')
     });
     ws.on('message', function message(data: string): void {
         const parsedData: IParsedData = JSON.parse(data);
@@ -52,16 +44,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 const registeredUser = registeredUsers.find(user => user.name === userName)
                 if (registeredUser) {
                     if (registeredUser.password !== data.password) {
-                        ws.send(JSON.stringify({
-                            type: "reg",
-                            data: JSON.stringify({
-                                name: userName,
-                                index: ws.id,
-                                error: true,
-                                errorText: 'Wrong password'
-                            }),
-                            id: 0,
-                        }));
+                        error(ws, { name: userName, index: ws.id }, 'Wrong password')
                         console.log(`Reg command received from client: User: ${activeUser.name} wrong password`)
                         return
                     }
