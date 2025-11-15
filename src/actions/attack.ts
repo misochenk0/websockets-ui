@@ -1,7 +1,7 @@
 import { findFirstAvailable, getCoordinatesAround } from "../helpers.js";
 import { updateWinners } from "./update_winners.js";
 import { turn } from "./turn.js";
-import {IParsedData, IPosition, IExtendedWebSocket, IActiveRoom} from "../types.js";
+import {IParsedData, IPosition, IExtendedWebSocket, IActiveRoom, IAttackResult, IAttackError, EStatus} from "../types.js";
 import type { WebSocketServer } from "ws";
 
 interface IAttackData {
@@ -10,8 +10,6 @@ interface IAttackData {
     x?: number,
     y?: number,
 }
-
-enum EStatus { shot = 'shot', miss = 'miss', killed = 'killed' }
 
 const sendAttack = (client: IExtendedWebSocket, currentPlayer: number, position: IPosition, status: EStatus): void => {
     client.send(JSON.stringify({
@@ -25,10 +23,10 @@ const sendAttack = (client: IExtendedWebSocket, currentPlayer: number, position:
     }))
 }
 
-export const attack = (parsedData: IParsedData, activeRooms: IActiveRoom[], wss: WebSocketServer): void => {
+export const attack = (parsedData: IParsedData, activeRooms: IActiveRoom[], wss: WebSocketServer): IAttackResult | IAttackError => {
     const data: IAttackData = JSON.parse(parsedData?.data)
     const room = activeRooms.find(room => room.roomId === data.gameId)
-    if (room.activePlayer !== data.indexPlayer) return console.log('Not your turn')
+    if (room.activePlayer !== data.indexPlayer) return { error: 'Not your turn' }
     const player = room.roomUsers.find(user => user.index === data.indexPlayer)
     const enemy = room.roomUsers.find(user => user.index !== data.indexPlayer)
     let position: IPosition = { x: data.x, y: data.y }
@@ -89,4 +87,8 @@ export const attack = (parsedData: IParsedData, activeRooms: IActiveRoom[], wss:
             }
         }
     })
+    return {
+        status,
+        position,
+    }
 }

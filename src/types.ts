@@ -48,3 +48,14 @@ export interface IActiveRoom extends IRoom {
 export interface IExtendedWebSocket extends WebSocket {
     id: number;
 }
+
+export enum EStatus { shot = 'shot', miss = 'miss', killed = 'killed' }
+
+export interface IAttackResult {
+    status: EStatus,
+    position: IPosition,
+}
+
+export interface IAttackError {
+    error: string
+}

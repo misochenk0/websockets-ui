@@ -1,6 +1,6 @@
 import { httpServer } from "./src/http_server/index.js";
 import { WebSocketServer } from 'ws';
-import {IRoom, IParsedData, IRoomUser, IUser, IShip, IPosition, IExtendedWebSocket, IActiveRoom} from "./src/types.js";
+import {IRoom, IParsedData, IRoomUser, IUser, IShip, IPosition, IExtendedWebSocket, IActiveRoom, IAttackError, IAttackResult} from "./src/types.js";
 import { updateWinners } from "./src/actions/update_winners.js";
 import { attack } from "./src/actions/attack.js";
 import { turn } from "./src/actions/turn.js";
@@ -16,7 +16,6 @@ let activeRooms: IActiveRoom[] = []
 wss.on('connection', (ws: IExtendedWebSocket): void => {
     console.log('Websockets server started on ws://localhost:3000')
     let userName: string = null
-    let userId: number = null
     ws.id = index
     index++
     ws.on('error', (): void => {
@@ -28,7 +27,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 error: true,
                 errorText: 'Connection error'
             },
-            id: userId
+            id: ws.id,
         }));
     });
     ws.on('message', function message(data: string): void {
@@ -46,7 +45,6 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
         switch (messageType) {
             case 'reg': {
                 userName = JSON.parse(parsedData?.data)?.name;
-                userId = parsedData?.id;
                 ws.send(JSON.stringify({
                     type: "reg",
                     data: JSON.stringify({
@@ -56,6 +54,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                     }),
                     id: 0,
                 }));
+                console.log(`Reg command received from client: User: ${userName} with id: ${ws.id} created`)
 
                 updateRooms()
                 updateWinners(null, ws)
@@ -71,6 +70,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 wss.clients.forEach((client: IExtendedWebSocket): void => {
                     updateRooms(client)
                 })
+                console.log(`Create room command received from client: Room with id: ${new_room.roomId} created`)
                 break
             }
             case 'add_user_to_room': {
@@ -87,6 +87,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 wss.clients.forEach((client: IExtendedWebSocket): void => {
                     updateRooms(client)
                 })
+                console.log(`Add user to room command received from client: User: ${userName} with id: ${ws.id} added to room with id: ${indexRoom}`)
 
                 if (selectedRoom.roomUsers.length === 2) {
                     activeRooms.push(selectedRoom as IActiveRoom)
@@ -102,6 +103,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                             }))
                         }
                     })
+                    console.log(`Game created for room with id: ${selectedRoom.roomId}`)
                 }
                 break
             }
@@ -221,6 +223,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                     }),
                     id: 0,
                 }))
+                console.log(`Single play command received from client: Game with id: ${new_room.roomId} created`)
                 break
             }
             case 'add_ships': {
@@ -235,6 +238,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 }) : room)
                 const room: IActiveRoom = activeRooms.find((room: IRoom): boolean => room.roomId === data.gameId)
                 const channels: IExtendedWebSocket[] = []
+                console.log(`Add ships command received from client: Added ships for user ${data.indexPlayer}`)
                 if (room.roomUsers.every((user: IRoomUser): number => user.ships?.length)) {
                     wss.clients.forEach((client: IExtendedWebSocket): void => {
                         if (room.roomUsers.some((user: IRoomUser): boolean => user.index === client.id)) {
@@ -268,20 +272,25 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                             })
                         }
                     })
+                    console.log(`All ships added for room with id: ${data.gameId}, start game`)
                 }
                 break
             }
             case 'attack':
             case 'randomAttack':
-                attack(parsedData, activeRooms, wss)
+                const response: IAttackResult | IAttackError = attack(parsedData, activeRooms, wss)
+                if ('error' in response) {
+                    console.log(`Received ${messageType} from client: error ${response.error}`)
+                } else {
+                    console.log(`Received ${messageType} from client: result ${response.position.x}, ${response.position.y} - ${response.status}`)
+                }
                 break
         }
     });
 })
 
 
-process.on('SIGINT', function() {
-    // wss.close();
+process.on('SIGINT', function(): never {
     process.exit();
 })
 
