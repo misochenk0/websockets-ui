@@ -11,7 +11,7 @@
 
 `npm run start:dev`
 
-* App served @ `http://localhost:8181` with nodemon
+* App served @ `http://localhost:8181` with tsx watch
 
 **Production**
 
