@@ -1,86 +1,16 @@
-import { httpServer } from "./src/http_server/index.js";
+import { httpServer } from "./src/http_server/index";
 import { WebSocketServer } from 'ws';
+import { findFirstAvailable, getCoordinatesAround } from "./src/helpers";
+import { IRoom, IUser, IWinner } from "./src/types";
 
 const HTTP_PORT: number = 8181;
 
 const wss = new WebSocketServer({ port: 3000 });
 let index = 0
 
-interface User {
-    name: string,
-    index: number | string,
-}
-
-interface Room {
-    roomId: string | number,
-    roomUsers: User[],
-}
-
-interface Winner {
-    name: string,
-    wins: number,
-}
-
-let availableRooms: Room[] = []
-let winners: Winner[] = []
+let availableRooms: IRoom[] = []
+let winners: IWinner[] = []
 let activeRooms = []
-
-function getCoordinatesAround({ position, direction, length }) {
-    const { x, y } = position || {};
-    const GRID_SIZE = 10;
-    const main = [];
-
-    // Build the main segment
-    for (let i = 0; i < length; i++) {
-        main.push({
-            x: direction ? x : x + i,
-            y: direction ? y + i : y,
-        });
-    }
-
-    const around = new Set();
-
-    // For each main cell, add all 8 neighbors
-    for (const { x: cx, y: cy } of main) {
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                if (dx === 0 && dy === 0) continue; // skip itself
-
-                const nx = cx + dx;
-                const ny = cy + dy;
-
-                // skip out-of-bounds coordinates
-                if (nx < 0 || ny < 0 || nx >= GRID_SIZE || ny >= GRID_SIZE) continue;
-
-                around.add(`${nx},${ny}`);
-            }
-        }
-    }
-
-    // Remove main segment cells
-    for (const { x: mx, y: my } of main) {
-        around.delete(`${mx},${my}`);
-    }
-
-    // Convert to array
-    return Array.from(around).map(str => {
-        const [ax, ay] = str.split(',').map(Number);
-        return { x: ax, y: ay };
-    });
-}
-
-function findFirstAvailable(used) {
-    for (let y = 0; y < 10; y++) {
-        for (let x = 0; x < 10; x++) {
-            const key = `${x},${y}`;
-            if (!used.has(key)) {
-                return {x, y};   // first free coordinate
-            }
-        }
-    }
-    return null; // all full
-}
-
 
 
 wss.on('connection', ws => {
