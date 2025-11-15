@@ -3,6 +3,7 @@ import type {WebSocket} from "ws";
 export interface IUser {
     name: string,
     index: number | string,
+    password?: string,
 }
 
 export interface IWinner {
@@ -46,7 +47,7 @@ export interface IActiveRoom extends IRoom {
 }
 
 export interface IExtendedWebSocket extends WebSocket {
-    id: number;
+    id: number | string,
 }
 
 export enum EStatus { shot = 'shot', miss = 'miss', killed = 'killed' }

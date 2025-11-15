@@ -7,6 +7,8 @@ import { turn } from "./src/actions/turn.js";
 
 const HTTP_PORT: number = 8181;
 
+const registeredUsers: IUser[] = []
+
 const wss = new WebSocketServer({ port: 3000 });
 let index: number = 0
 
@@ -18,12 +20,13 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
     let userName: string = null
     ws.id = index
     index++
+    let activeUser: IUser = { name: userName, password: '', index: ws.id}
     ws.on('error', (): void => {
         ws.send(JSON.stringify({
             type: 'reg',
             data: {
-                name: userName,
-                index: ws.id,
+                name: activeUser.name,
+                index: activeUser.index,
                 error: true,
                 errorText: 'Connection error'
             },
@@ -44,28 +47,58 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
 
         switch (messageType) {
             case 'reg': {
-                userName = JSON.parse(parsedData?.data)?.name;
+                const data = JSON.parse(parsedData?.data)
+                const userName = data?.name;
+                const registeredUser = registeredUsers.find(user => user.name === userName)
+                if (registeredUser) {
+                    if (registeredUser.password !== data.password) {
+                        ws.send(JSON.stringify({
+                            type: "reg",
+                            data: JSON.stringify({
+                                name: userName,
+                                index: ws.id,
+                                error: true,
+                                errorText: 'Wrong password'
+                            }),
+                            id: 0,
+                        }));
+                        console.log(`Reg command received from client: User: ${activeUser.name} wrong password`)
+                        return
+                    }
+                    activeUser = registeredUser
+                    ws.id = activeUser.index
+                    ws.send(JSON.stringify({
+                        type: "reg",
+                        data: JSON.stringify({
+                            name: activeUser.name,
+                            index: activeUser.index,
+                            error: false,
+                        }),
+                        id: 0,
+                    }));
+                    console.log(`Reg command received from client: User: ${activeUser.name} with id: ${activeUser.index} logged in`)
+                    return
+                }
+                activeUser = { name: userName, password: data.password, index: registeredUsers.length }
+                ws.id = activeUser.index
+                registeredUsers.push(activeUser)
                 ws.send(JSON.stringify({
                     type: "reg",
                     data: JSON.stringify({
-                        name: userName,
-                        index: ws.id,
+                        name: activeUser.name,
+                        index: activeUser.index,
                         error: false,
                     }),
                     id: 0,
                 }));
-                console.log(`Reg command received from client: User: ${userName} with id: ${ws.id} created`)
+                console.log(`Reg command received from client: User: ${activeUser.name} with id: ${activeUser.index} created`)
 
                 updateRooms()
                 updateWinners(null, ws)
                 break;
             }
             case 'create_room': {
-                const user = {
-                    name: userName,
-                    index: ws.id,
-                }
-                const new_room = { roomId: availableRooms.length + 1, roomUsers: [user] }
+                const new_room = { roomId: availableRooms.length + 1, roomUsers: [activeUser] }
                 availableRooms.push(new_room)
                 wss.clients.forEach((client: IExtendedWebSocket): void => {
                     updateRooms(client)
@@ -78,16 +111,13 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 const indexRoom: number  = data?.indexRoom
                 availableRooms = availableRooms?.map((room: IRoom): IRoom => ({
                     ...room,
-                    roomUsers: indexRoom === room.roomId ? [...room.roomUsers, {
-                        name: userName,
-                        index: ws.id,
-                    }] : room.roomUsers,
+                    roomUsers: indexRoom === room.roomId ? [...room.roomUsers, activeUser] : room.roomUsers,
                 }))
                 const selectedRoom: IRoom = availableRooms.find((room: IRoom): boolean => room.roomId === indexRoom)
                 wss.clients.forEach((client: IExtendedWebSocket): void => {
                     updateRooms(client)
                 })
-                console.log(`Add user to room command received from client: User: ${userName} with id: ${ws.id} added to room with id: ${indexRoom}`)
+                console.log(`Add user to room command received from client: User: ${activeUser.name} with id: ${activeUser.index} added to room with id: ${indexRoom}`)
 
                 if (selectedRoom.roomUsers.length === 2) {
                     activeRooms.push(selectedRoom as IActiveRoom)
@@ -108,10 +138,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 break
             }
             case 'single_play': {
-                const user: IUser = {
-                    name: userName,
-                    index: ws.id,
-                }
+                const user: IUser = activeUser
                 const bot: IRoomUser = {
                     name: 'Bot',
                     index: 'bot',
@@ -219,7 +246,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                     type: "create_game",
                     data: JSON.stringify({
                         idGame: new_room.roomId,
-                        idPlayer: ws.id,
+                        idPlayer: activeUser.index,
                     }),
                     id: 0,
                 }))
