@@ -1,7 +1,19 @@
 import { httpServer } from "./src/http_server/index.js";
 import { WebSocketServer } from 'ws';
-import {IRoom, IParsedData, IRoomUser, IUser, IShip, IPosition, IExtendedWebSocket, IActiveRoom, IAttackError, IAttackResult} from "./src/types.js";
-import { updateWinners } from "./src/actions/update_winners.js";
+import {
+    IRoom,
+    IParsedData,
+    IRoomUser,
+    IUser,
+    IShip,
+    IPosition,
+    IExtendedWebSocket,
+    IActiveRoom,
+    IAttackError,
+    IAttackResult,
+    IWinner
+} from "./src/types.js";
+import {sendWinners, updateWinners} from "./src/actions/update_winners.js";
 import { attack } from "./src/actions/attack.js";
 import { turn } from "./src/actions/turn.js";
 import { error } from "./src/actions/error.js";
@@ -15,6 +27,7 @@ let index: number = 0
 
 let availableRooms: IRoom[] = []
 let activeRooms: IActiveRoom[] = []
+let winners: IWinner[] = []
 
 wss.on('connection', (ws: IExtendedWebSocket): void => {
     console.log('Websockets server started on ws://localhost:3000')
@@ -77,7 +90,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                 console.log(`Reg command received from client: User: ${activeUser.name} with id: ${activeUser.index} created`)
 
                 updateRooms()
-                updateWinners(null, ws)
+                sendWinners(ws, winners)
                 break;
             }
             case 'create_room': {
@@ -254,7 +267,7 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                         if (room.roomUsers.some((user: IRoomUser): boolean => user.index === client.id)) {
                             channels.push(client)
                             const player: IRoomUser = room.roomUsers.find((user: IRoomUser): boolean => user.index === client.id)
-                            const [firstUser] = channels || []
+                            const [firstUser] = room.roomUsers || []
                             client.send(JSON.stringify({
                                 type: "start_game",
                                 data: JSON.stringify({
@@ -263,8 +276,8 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
                                 }),
                                 id: 0,
                             }))
-                            turn(client, firstUser.id)
-                            room.activePlayer = firstUser.id
+                            turn(client, firstUser.index)
+                            room.activePlayer = firstUser.index
                             room.roomUsers.forEach((user: IRoomUser): void => {
                                 user.allShips = user.ships.map((ship: IShip): IShip => {
                                     const shipPosition: IPosition = ship.position
@@ -288,11 +301,30 @@ wss.on('connection', (ws: IExtendedWebSocket): void => {
             }
             case 'attack':
             case 'randomAttack':
-                const response: IAttackResult | IAttackError = attack(parsedData, activeRooms, wss)
+                const response: IAttackResult | IAttackError = attack(parsedData, activeRooms, wss, winners)
                 if ('error' in response) {
                     console.log(`Received ${messageType} from client: error ${response.error}`)
                 } else {
+                    const data = JSON.parse(parsedData?.data)
                     console.log(`Received ${messageType} from client: result ${response.position.x}, ${response.position.y} - ${response.status}`)
+                    if (response.isFinished) {
+                        let activeUsers = activeRooms.find((room: IActiveRoom): boolean => room.roomId === data.gameId)?.roomUsers
+                        activeRooms = activeRooms.filter((room: IActiveRoom): boolean => room.roomId !== data.gameId)
+                        winners = updateWinners(response.winner, winners)
+
+                        wss.clients.forEach((client : IExtendedWebSocket): void => {
+                            if (activeUsers.some((user: IRoomUser): boolean => user.index === client.id)) {
+                                client.send(JSON.stringify({
+                                    type: "finish",
+                                    data: JSON.stringify({
+                                        winPlayer: response.winner.index,
+                                    }),
+                                    id: 0,
+                                }))
+                            }
+                            sendWinners(client, winners)
+                        })
+                    }
                 }
                 break
         }

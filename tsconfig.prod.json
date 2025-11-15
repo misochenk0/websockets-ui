@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -11,7 +11,7 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": false,
+    "outDir": "./dist"
   },
   "include": ["**/*.ts"]
 }

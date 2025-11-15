@@ -55,6 +55,8 @@ export enum EStatus { shot = 'shot', miss = 'miss', killed = 'killed' }
 export interface IAttackResult {
     status: EStatus,
     position: IPosition,
+    isFinished?: boolean,
+    winner?: IUser,
 }
 
 export interface IAttackError {
