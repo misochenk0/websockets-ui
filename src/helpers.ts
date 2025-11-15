@@ -1,4 +1,4 @@
-import { IPosition } from "./types";
+import { IPosition } from "./types.js";
 
 export function getCoordinatesAround({ position, direction, length }: { position: IPosition, direction: boolean, length: number }): IPosition[] {
     const { x, y } = position || {};
